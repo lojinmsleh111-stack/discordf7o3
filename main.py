@@ -8,7 +8,7 @@ from discord import app_commands
 
 
 # ==========================================
-# إعدادات Render
+# Render PORT
 # ==========================================
 
 PORT = int(os.getenv("PORT", 10000))
@@ -31,15 +31,19 @@ def run_server():
     server.serve_forever()
 
 
-# تشغيل السيرفر في الخلفية
 threading.Thread(target=run_server, daemon=True).start()
+
+
+# ==========================================
+# TOKEN
+# ==========================================
+
+TOKEN = os.getenv("BOT_TOKEN")
 
 
 # ==========================================
 # الإعدادات
 # ==========================================
-
-TOKEN = os.getenv("BOT_TOKEN")
 
 ACTIVATION_CHANNEL_ID = 1536018619954110555
 
@@ -52,7 +56,33 @@ ACTIVATION_REMOVE_ROLE = 1536154297916457120
 
 
 # ==========================================
-# إعداد البوت
+# نظام الهويات
+# ==========================================
+
+IDENTITY_FILE = "identity.txt"
+
+
+def get_next_identity():
+
+    if not os.path.exists(IDENTITY_FILE):
+        current_identity = 1000
+    else:
+        try:
+            with open(IDENTITY_FILE, "r") as file:
+                current_identity = int(file.read().strip())
+        except:
+            current_identity = 1000
+
+    next_identity = current_identity + 1
+
+    with open(IDENTITY_FILE, "w") as file:
+        file.write(str(next_identity))
+
+    return current_identity
+
+
+# ==========================================
+# Bot
 # ==========================================
 
 intents = discord.Intents.default()
@@ -66,7 +96,7 @@ bot = commands.Bot(
 
 
 # ==========================================
-# تشغيل البوت
+# Ready
 # ==========================================
 
 @bot.event
@@ -83,26 +113,53 @@ async def on_ready():
 
 
 # ==========================================
-# نظام التفعيل
+# التفعيل
 # ==========================================
 
 @bot.event
 async def on_message(message):
 
+    # تجاهل البوتات
     if message.author.bot:
         return
 
+    # فقط روم التفعيل
     if message.channel.id != ACTIVATION_CHANNEL_ID:
         await bot.process_commands(message)
         return
 
     member = message.author
+
+    # اسم Roblox
     roblox_username = message.content.strip()
 
     if not roblox_username:
         return
 
+    # ======================================
+    # إعطاء الهوية
+    # ======================================
+
+    identity_number = get_next_identity()
+
+    # ======================================
+    # الاسم الجديد
+    # ======================================
+
+    new_nickname = (
+        f"HL | {identity_number} | {roblox_username}"
+    )
+
+    try:
+        await member.edit(nick=new_nickname)
+
+    except discord.Forbidden:
+        print(f"Cannot change nickname for {member}")
+
+    # ======================================
     # إعطاء الرتب
+    # ======================================
+
     for role_id in ACTIVATION_ROLES:
 
         role = message.guild.get_role(role_id)
@@ -116,7 +173,10 @@ async def on_message(message):
         except discord.Forbidden:
             print(f"Cannot add role: {role_id}")
 
+    # ======================================
     # إزالة الرتبة القديمة
+    # ======================================
+
     old_role = message.guild.get_role(
         ACTIVATION_REMOVE_ROLE
     )
@@ -131,16 +191,29 @@ async def on_message(message):
                 f"Cannot remove role: {ACTIVATION_REMOVE_ROLE}"
             )
 
-    # تغيير الاسم
-    new_nickname = f"HL | {roblox_username} | هويه"
+    # ======================================
+    # رسالة خاصة للعضو
+    # ======================================
 
     try:
-        await member.edit(nick=new_nickname)
+
+        await member.send(
+            f"✅ **تم تفعيل حسابك بنجاح!**\n\n"
+            f"🪪 **رقم الهوية:** `{identity_number}`\n"
+            f"👤 **اسمك الجديد:** `{new_nickname}`\n\n"
+            f"نتمنى لك التوفيق."
+        )
 
     except discord.Forbidden:
-        print(f"Cannot change nickname for {member}")
 
+        print(
+            f"Cannot send DM to {member}"
+        )
+
+    # ======================================
     # حذف رسالة العضو فقط
+    # ======================================
+
     try:
         await message.delete()
 
@@ -148,7 +221,7 @@ async def on_message(message):
         pass
 
     except discord.Forbidden:
-        print("Cannot delete message")
+        print("Cannot delete member message")
 
     await bot.process_commands(message)
 
@@ -216,7 +289,7 @@ async def اعطاء_رتب(
         رتبة16, رتبة17, رتبة18, رتبة19, رتبة20
     ]
 
-    roles = [r for r in roles if r is not None]
+    roles = [role for role in roles if role is not None]
 
     if not roles:
         await interaction.response.send_message(
@@ -307,7 +380,7 @@ async def ازالة_رتب(
         رتبة16, رتبة17, رتبة18, رتبة19, رتبة20
     ]
 
-    roles = [r for r in roles if r is not None]
+    roles = [role for role in roles if role is not None]
 
     if not roles:
         await interaction.response.send_message(

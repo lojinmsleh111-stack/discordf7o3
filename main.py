@@ -8,10 +8,10 @@ from discord import app_commands
 
 
 # ==========================================
-# Render PORT
+# Render Port
 # ==========================================
 
-PORT = int(os.getenv("PORT", 10000))
+PORT = int(os.getenv("PORT", "10000"))
 
 
 class HealthCheck(BaseHTTPRequestHandler):
@@ -25,33 +25,38 @@ class HealthCheck(BaseHTTPRequestHandler):
         return
 
 
-def run_server():
+def run_web_server():
     server = HTTPServer(("0.0.0.0", PORT), HealthCheck)
     print(f"Web server running on port {PORT}")
     server.serve_forever()
 
 
-threading.Thread(target=run_server, daemon=True).start()
+threading.Thread(
+    target=run_web_server,
+    daemon=True
+).start()
 
 
 # ==========================================
-# TOKEN
+# Token
 # ==========================================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
 
 # ==========================================
-# الإعدادات
+# إعدادات التفعيل
 # ==========================================
 
 ACTIVATION_CHANNEL_ID = 1536018619954110555
 
+# الرتب التي يحصل عليها العضو عند التفعيل
 ACTIVATION_ROLES = [
     1545033498908299324,
     1536733334795845672
 ]
 
+# الرتبة التي تنشال عند التفعيل
 ACTIVATION_REMOVE_ROLE = 1536154297916457120
 
 
@@ -64,28 +69,38 @@ IDENTITY_FILE = "identity.txt"
 
 def get_next_identity():
 
+    # أول هوية = 1000
     if not os.path.exists(IDENTITY_FILE):
+
         current_identity = 1000
-    else:
-        try:
-            with open(IDENTITY_FILE, "r") as file:
-                current_identity = int(file.read().strip())
-        except:
-            current_identity = 1000
 
-    next_identity = current_identity + 1
+        with open(IDENTITY_FILE, "w") as file:
+            file.write("1001")
 
+        return current_identity
+
+    try:
+
+        with open(IDENTITY_FILE, "r") as file:
+            current_identity = int(file.read().strip())
+
+    except:
+
+        current_identity = 1000
+
+    # حفظ الرقم التالي
     with open(IDENTITY_FILE, "w") as file:
-        file.write(str(next_identity))
+        file.write(str(current_identity + 1))
 
     return current_identity
 
 
 # ==========================================
-# Bot
+# إعداد Discord
 # ==========================================
 
 intents = discord.Intents.default()
+
 intents.message_content = True
 intents.members = True
 
@@ -96,24 +111,34 @@ bot = commands.Bot(
 
 
 # ==========================================
-# Ready
+# Bot Ready
 # ==========================================
 
 @bot.event
 async def on_ready():
 
-    print(f"Bot logged in as: {bot.user}")
+    print("--------------------------------")
+    print(f"Bot: {bot.user}")
+    print(f"Bot ID: {bot.user.id}")
+    print("--------------------------------")
 
     try:
+
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands")
+
+        print(
+            f"تم مزامنة {len(synced)} أوامر سلاش"
+        )
 
     except Exception as e:
-        print(f"Slash command sync error: {e}")
+
+        print(
+            f"خطأ في مزامنة أوامر السلاش: {e}"
+        )
 
 
 # ==========================================
-# التفعيل
+# نظام التفعيل
 # ==========================================
 
 @bot.event
@@ -123,38 +148,66 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # فقط روم التفعيل
+    # ======================================
+    # لا يعمل إلا داخل روم التفعيل
+    # ======================================
+
     if message.channel.id != ACTIVATION_CHANNEL_ID:
+
         await bot.process_commands(message)
+
+        return
+
+    # ======================================
+    # اسم Roblox
+    # ======================================
+
+    roblox_username = message.content.strip()
+
+    # إذا الرسالة فارغة
+    if not roblox_username:
+
         return
 
     member = message.author
 
-    # اسم Roblox
-    roblox_username = message.content.strip()
-
-    if not roblox_username:
-        return
 
     # ======================================
-    # إعطاء الهوية
+    # إعطاء رقم الهوية
     # ======================================
 
     identity_number = get_next_identity()
 
+
     # ======================================
     # الاسم الجديد
+    #
+    # HL | هويه | user
+    # مثال:
+    # HL | 1000 | RobloxUser
     # ======================================
 
     new_nickname = (
         f"HL | {identity_number} | {roblox_username}"
     )
 
+
+    # ======================================
+    # تغيير اسم العضو
+    # ======================================
+
     try:
-        await member.edit(nick=new_nickname)
+
+        await member.edit(
+            nick=new_nickname
+        )
 
     except discord.Forbidden:
-        print(f"Cannot change nickname for {member}")
+
+        print(
+            f"لا أستطيع تغيير اسم: {member}"
+        )
+
 
     # ======================================
     # إعطاء الرتب
@@ -165,13 +218,23 @@ async def on_message(message):
         role = message.guild.get_role(role_id)
 
         if role is None:
+
+            print(
+                f"الرتبة غير موجودة: {role_id}"
+            )
+
             continue
 
         try:
+
             await member.add_roles(role)
 
         except discord.Forbidden:
-            print(f"Cannot add role: {role_id}")
+
+            print(
+                f"لا أستطيع إعطاء الرتبة: {role_id}"
+            )
+
 
     # ======================================
     # إزالة الرتبة القديمة
@@ -184,50 +247,71 @@ async def on_message(message):
     if old_role is not None:
 
         try:
-            await member.remove_roles(old_role)
 
-        except discord.Forbidden:
-            print(
-                f"Cannot remove role: {ACTIVATION_REMOVE_ROLE}"
+            await member.remove_roles(
+                old_role
             )
 
+        except discord.Forbidden:
+
+            print(
+                f"لا أستطيع إزالة الرتبة: "
+                f"{ACTIVATION_REMOVE_ROLE}"
+            )
+
+
     # ======================================
-    # رسالة خاصة للعضو
+    # إرسال رسالة خاصة للعضو
     # ======================================
 
     try:
 
         await member.send(
-            f"✅ **تم تفعيل حسابك بنجاح!**\n\n"
+            "✅ **تم تفعيل حسابك بنجاح!**\n\n"
             f"🪪 **رقم الهوية:** `{identity_number}`\n"
-            f"👤 **اسمك الجديد:** `{new_nickname}`\n\n"
-            f"نتمنى لك التوفيق."
+            f"👤 **اسمك الجديد:** `{new_nickname}`"
         )
 
     except discord.Forbidden:
 
         print(
-            f"Cannot send DM to {member}"
+            f"لا أستطيع إرسال خاص إلى: {member}"
         )
 
+
     # ======================================
-    # حذف رسالة العضو فقط
+    # حذف رسالة العضو الحالية فقط
+    #
+    # مهم:
+    # لا يوجد purge
+    # لا يوجد حذف رسائل أخرى
     # ======================================
 
     try:
+
         await message.delete()
 
     except discord.NotFound:
+
         pass
 
     except discord.Forbidden:
-        print("Cannot delete member message")
+
+        print(
+            "البوت لا يملك صلاحية حذف الرسائل"
+        )
+
+
+    # ======================================
+    # معالجة أوامر البوت
+    # ======================================
 
     await bot.process_commands(message)
 
 
 # ==========================================
 # /اعطاء_رتب
+# حتى 20 رتبة
 # ==========================================
 
 @bot.tree.command(
@@ -235,7 +319,7 @@ async def on_message(message):
     description="إعطاء عضو حتى 20 رتبة"
 )
 @app_commands.describe(
-    العضو="العضو",
+    العضو="العضو الذي تريد إعطاءه الرتب",
     رتبة1="الرتبة الأولى",
     رتبة2="الرتبة الثانية",
     رتبة3="الرتبة الثالثة",
@@ -289,36 +373,49 @@ async def اعطاء_رتب(
         رتبة16, رتبة17, رتبة18, رتبة19, رتبة20
     ]
 
-    roles = [role for role in roles if role is not None]
+    roles = [
+        role for role in roles
+        if role is not None
+    ]
 
     if not roles:
+
         await interaction.response.send_message(
             "❌ اختر رتبة واحدة على الأقل.",
             ephemeral=True
         )
+
         return
 
     added = 0
 
     for role in roles:
 
+        # البوت لا يستطيع إدارة رتبة
+        # أعلى أو مساوية لرتبته
         if role >= interaction.guild.me.top_role:
+
             continue
 
         try:
+
             await العضو.add_roles(role)
+
             added += 1
 
         except discord.Forbidden:
+
             continue
 
     await interaction.response.send_message(
-        f"✅ تم إعطاء {العضو.mention} **{added}** رتبة."
+        f"✅ تم إعطاء {العضو.mention} "
+        f"**{added}** رتبة."
     )
 
 
 # ==========================================
 # /ازالة_رتب
+# حتى 20 رتبة
 # ==========================================
 
 @bot.tree.command(
@@ -326,7 +423,7 @@ async def اعطاء_رتب(
     description="إزالة حتى 20 رتبة من عضو"
 )
 @app_commands.describe(
-    العضو="العضو",
+    العضو="العضو الذي تريد إزالة الرتب منه",
     رتبة1="الرتبة الأولى",
     رتبة2="الرتبة الثانية",
     رتبة3="الرتبة الثالثة",
@@ -380,13 +477,18 @@ async def ازالة_رتب(
         رتبة16, رتبة17, رتبة18, رتبة19, رتبة20
     ]
 
-    roles = [role for role in roles if role is not None]
+    roles = [
+        role for role in roles
+        if role is not None
+    ]
 
     if not roles:
+
         await interaction.response.send_message(
             "❌ اختر رتبة واحدة على الأقل.",
             ephemeral=True
         )
+
         return
 
     removed = 0
@@ -394,17 +496,22 @@ async def ازالة_رتب(
     for role in roles:
 
         if role >= interaction.guild.me.top_role:
+
             continue
 
         try:
+
             await العضو.remove_roles(role)
+
             removed += 1
 
         except discord.Forbidden:
+
             continue
 
     await interaction.response.send_message(
-        f"✅ تم إزالة **{removed}** رتبة من {العضو.mention}."
+        f"✅ تم إزالة **{removed}** رتبة "
+        f"من {العضو.mention}."
     )
 
 
@@ -413,8 +520,10 @@ async def ازالة_رتب(
 # ==========================================
 
 if not TOKEN:
+
     raise RuntimeError(
         "BOT_TOKEN غير موجود في Environment Variables"
     )
+
 
 bot.run(TOKEN)

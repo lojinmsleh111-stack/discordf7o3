@@ -68,16 +68,20 @@ IDENTITY_FILE = "identity.txt"
 
 
 def get_next_identity():
+    try:
+        with open(IDENTITY_FILE, "r") as file:
+            next_identity = int(file.read().strip())
+    except (FileNotFoundError, ValueError):
+        next_identity = 1000
 
-    # أول هوية = 1000
-    if not os.path.exists(IDENTITY_FILE):
+    # الرقم الحالي للتفعيل
+    identity = next_identity
 
-        current_identity = 1000
+    # حفظ الرقم التالي مباشرة
+    with open(IDENTITY_FILE, "w") as file:
+        file.write(str(identity + 1))
 
-        with open(IDENTITY_FILE, "w") as file:
-            file.write("1001")
-
-        return current_identity
+    return identity
 
     try:
 

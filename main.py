@@ -25,9 +25,12 @@ class HealthCheck(BaseHTTPRequestHandler):
 
 
 def run_web_server():
-    server = HTTPServer(("0.0.0.0", PORT), HealthCheck)
-    print(f"Web server running on port {PORT}")
-    server.serve_forever()
+    try:
+        server = HTTPServer(("0.0.0.0", PORT), HealthCheck)
+        print(f"Web server running on port {PORT}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"❌ Web server error: {type(e).__name__}: {e}")
 
 
 threading.Thread(target=run_web_server, daemon=True).start()
@@ -87,7 +90,6 @@ async def get_next_identity():
         except (FileNotFoundError, ValueError):
             identity = 1000
 
-        # الرقم القادم
         next_identity = identity + 1
 
         with open(IDENTITY_FILE, "w", encoding="utf-8") as file:
@@ -106,7 +108,30 @@ intents.message_content = True
 intents.members = True
 
 
-bot = commands.Bot(
+# =========================
+# Bot
+# =========================
+
+class MyBot(commands.Bot):
+
+    async def setup_hook(self):
+        """
+        يتم تشغيله مرة واحدة عند بدء البوت.
+        مزامنة أوامر السلاش لا تتكرر مع كل reconnect.
+        """
+
+        try:
+            synced = await self.tree.sync()
+            print(f"✅ تم مزامنة {len(synced)} أوامر سلاش")
+
+        except Exception as e:
+            print(
+                f"❌ خطأ في مزامنة أوامر السلاش: "
+                f"{type(e).__name__}: {e}"
+            )
+
+
+bot = MyBot(
     command_prefix="!",
     intents=intents
 )
@@ -123,13 +148,7 @@ async def on_ready():
     print(f"Bot: {bot.user}")
     print(f"Bot ID: {bot.user.id}")
     print("=" * 40)
-
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ تم مزامنة {len(synced)} أوامر سلاش")
-
-    except Exception as e:
-        print(f"❌ خطأ في مزامنة أوامر السلاش: {e}")
+    print("🟢 البوت متصل ويعمل")
 
 
 # =========================
@@ -174,10 +193,15 @@ async def on_message(message):
 
         try:
             await member.edit(nick=new_nickname)
+
         except discord.Forbidden:
             print(f"❌ لا أستطيع تغيير اسم {member}")
+
         except Exception as e:
-            print(f"❌ خطأ في تغيير الاسم: {e}")
+            print(
+                f"❌ خطأ في تغيير الاسم: "
+                f"{type(e).__name__}: {e}"
+            )
 
         # =========================
         # Add Roles
@@ -199,11 +223,16 @@ async def on_message(message):
                 roles_added.append(role.name)
 
             except discord.Forbidden:
-                print(f"❌ لا أستطيع إعطاء الرتبة: {role.name}")
+                print(
+                    f"❌ لا أستطيع إعطاء الرتبة: "
+                    f"{role.name}"
+                )
 
             except Exception as e:
-                print(f"❌ خطأ في إعطاء الرتبة {role.name}: {e}")
-
+                print(
+                    f"❌ خطأ في إعطاء الرتبة "
+                    f"{role.name}: {e}"
+                )
 
         # =========================
         # Remove Old Role
@@ -211,7 +240,9 @@ async def on_message(message):
 
         removed_role_name = None
 
-        old_role = message.guild.get_role(ACTIVATION_REMOVE_ROLE)
+        old_role = message.guild.get_role(
+            ACTIVATION_REMOVE_ROLE
+        )
 
         if old_role is not None:
 
@@ -223,11 +254,15 @@ async def on_message(message):
                     removed_role_name = old_role.name
 
                 except discord.Forbidden:
-                    print(f"❌ لا أستطيع إزالة الرتبة: {old_role.name}")
+                    print(
+                        f"❌ لا أستطيع إزالة الرتبة: "
+                        f"{old_role.name}"
+                    )
 
                 except Exception as e:
-                    print(f"❌ خطأ في إزالة الرتبة: {e}")
-
+                    print(
+                        f"❌ خطأ في إزالة الرتبة: {e}"
+                    )
 
         # =========================
         # DM Member
@@ -247,11 +282,14 @@ async def on_message(message):
             print(f"✅ تم إرسال DM إلى {member}")
 
         except discord.Forbidden:
-            print(f"⚠️ لا يمكن إرسال DM إلى {member}")
+            print(
+                f"⚠️ لا يمكن إرسال DM إلى {member}"
+            )
 
         except Exception as e:
-            print(f"❌ خطأ في إرسال DM: {e}")
-
+            print(
+                f"❌ خطأ في إرسال DM: {e}"
+            )
 
         # =========================
         # Activation Log
@@ -259,7 +297,9 @@ async def on_message(message):
 
         try:
 
-            log_channel = bot.get_channel(ACTIVATION_LOG_CHANNEL_ID)
+            log_channel = bot.get_channel(
+                ACTIVATION_LOG_CHANNEL_ID
+            )
 
             # إذا لم يجد القناة في الكاش
             if log_channel is None:
@@ -270,9 +310,10 @@ async def on_message(message):
                     )
 
                 except Exception as e:
-                    print(f"❌ لم أستطع الحصول على قناة اللوق: {e}")
+                    print(
+                        f"❌ لم أستطع الحصول على قناة اللوق: {e}"
+                    )
                     log_channel = None
-
 
             if log_channel is not None:
 
@@ -362,7 +403,6 @@ async def on_message(message):
                 f"{type(e).__name__}: {e}"
             )
 
-
         # =========================
         # Delete ONLY User Message
         # =========================
@@ -388,14 +428,12 @@ async def on_message(message):
                 f"❌ خطأ في حذف رسالة العضو: {e}"
             )
 
-
     except Exception as e:
 
         print(
             f"❌ خطأ أثناء تفعيل {member}: "
             f"{type(e).__name__}: {e}"
         )
-
 
     # معالجة أوامر البريفكس
     await bot.process_commands(message)
@@ -457,7 +495,10 @@ async def give_roles(
         رتبة20
     ]
 
-    roles = [role for role in roles if role is not None]
+    roles = [
+        role for role in roles
+        if role is not None
+    ]
 
     added = []
 
@@ -476,11 +517,11 @@ async def give_roles(
         except Exception:
             continue
 
-
     if added:
 
         await interaction.response.send_message(
-            f"✅ تم إعطاء {العضو.mention} عدد **{len(added)}** رتبة."
+            f"✅ تم إعطاء {العضو.mention} عدد "
+            f"**{len(added)}** رتبة."
         )
 
     else:
@@ -546,7 +587,10 @@ async def remove_roles(
         رتبة20
     ]
 
-    roles = [role for role in roles if role is not None]
+    roles = [
+        role for role in roles
+        if role is not None
+    ]
 
     removed = []
 
@@ -565,11 +609,11 @@ async def remove_roles(
         except Exception:
             continue
 
-
     if removed:
 
         await interaction.response.send_message(
-            f"✅ تم إزالة **{len(removed)}** رتبة من {العضو.mention}."
+            f"✅ تم إزالة **{len(removed)}** رتبة "
+            f"من {العضو.mention}."
         )
 
     else:
@@ -585,4 +629,11 @@ async def remove_roles(
 
 print("🚀 Starting bot...")
 
-bot.run(TOKEN)
+try:
+    bot.run(TOKEN)
+except Exception as e:
+    print(
+        f"❌ البوت توقف: "
+        f"{type(e).__name__}: {e}"
+    )
+    raise
